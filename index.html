@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Todo List</title>
+    <style>
+        /* ... Previous styles remain the same ... */
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .todo-form {
+            display: grid;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .todo-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            gap: 10px;
+        }
+        .todo-item.completed {
+            opacity: 0.7;
+            text-decoration: line-through;
+        }
+        .todo-item:hover {
+            background-color: #f9f9f9;
+        }
+        .filters {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .priority-high { color: #dc3545; }
+        .priority-medium { color: #ffc107; }
+        .priority-low { color: #28a745; }
+        button {
+            padding: 5px 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .delete-btn {
+            background-color: #dc3545;
+            margin-left: auto;
+        }
+        .delete-btn:hover {
+            background-color: #c82333;
+        }
+        select, input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .error {
+            color: #dc3545;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+        .todo-count {
+            margin-top: 20px;
+            color: #666;
+        }
+        .todo-text-wrapper {
+            flex-grow: 1;
+            word-break: break-word;
+        }
+        @media (max-width: 600px) {
+            .todo-form {
+                grid-template-columns: 1fr;
+            }
+            .filters {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Advanced Todo List</h1>
+        
+        <form class="todo-form" id="todoForm">
+            <input 
+                type="text" 
+                id="todoText" 
+                placeholder="Enter task" 
+                required 
+                maxlength="100"
+                pattern=".{3,}"
+                title="Task must be at least 3 characters long"
+            >
+            <input 
+                type="date" 
+                id="todoDueDate"
+                min=""
+            >
+            <select id="todoCategory" required>
+                <option value="">Select Category</option>
+                <option value="personal">Personal</option>
+                <option value="work">Work</option>
+                <option value="shopping">Shopping</option>
+                <option value="other">Other</option>
+            </select>
+            <select id="todoPriority" required>
+                <option value="">Select Priority</option>
+                <option value="low">Low Priority</option>
+                <option value="medium">Medium Priority</option>
+                <option value="high">High Priority</option>
+            </select>
+            <button type="submit" id="submitButton">Add Task</button>
+            <div id="errorMessage" class="error"></div>
+        </form>
+
+        <div class="filters">
+            <select id="filterCategory">
+                <option value="all">All Categories</option>
+                <option value="personal">Personal</option>
+                <option value="work">Work</option>
+                <option value="shopping">Shopping</option>
+                <option value="other">Other</option>
+            </select>
+            <select id="filterPriority">
+                <option value="all">All Priorities</option>
+                <option value="low">Low Priority</option>
+                <option value="medium">Medium Priority</option>
+                <option value="high">High Priority</option>
+            </select>
+            <button onclick="clearCompleted()" id="clearCompletedBtn">Clear Completed</button>
+        </div>
+
+        <div id="todoList"></div>
+        <div class="todo-count" id="todoCount"></div>
+    </div>
+
+    <script>
+        // Initialize todos array in memory
+        let todos = [];
+
+        // Set minimum date to today for the due date input
+        const todayStr = new Date().toISOString().split('T')[0];
+        document.getElementById('todoDueDate').min = todayStr;
+
+        function sanitizeInput(input) {
+            const div = document.createElement('div');
+            div.textContent = input;
+            return div.innerHTML;
+        }
+
+        function validateTodo(todo) {
+            if (!todo.text || todo.text.trim().length < 3) {
+                throw new Error('Task must be at least 3 characters long');
+            }
+            if (!todo.category) {
+                throw new Error('Please select a category');
+            }
+            if (!todo.priority) {
+                throw new Error('Please select a priority level');
+            }
+            if (todo.dueDate && new Date(todo.dueDate) < new Date(todayStr)) {
+                throw new Error('Due date cannot be in the past');
+            }
+        }
+
+        function addTodo(e) {
+            e.preventDefault();
+            const errorElement = document.getElementById('errorMessage');
+            errorElement.textContent = '';
+
+            try {
+                const todoText = sanitizeInput(document.getElementById('todoText').value.trim());
+                const todoDueDate = document.getElementById('todoDueDate').value;
+                const todoCategory = document.getElementById('todoCategory').value;
+                const todoPriority = document.getElementById('todoPriority').value;
+
+                const todo = {
+                    id: Date.now(),
+                    text: todoText,
+                    dueDate: todoDueDate,
+                    category: todoCategory,
+                    priority: todoPriority,
+                    completed: false,
+                    createdAt: new Date().toISOString()
+                };
+
+                validateTodo(todo);
+                todos.push(todo);
+                renderTodos();
+                e.target.reset();
+            } catch (error) {
+                errorElement.textContent = error.message;
+            }
+        }
+
+        function toggleTodo(id) {
+            try {
+                const todoIndex = todos.findIndex(todo => todo.id === id);
+                if (todoIndex !== -1) {
+                    todos[todoIndex].completed = !todos[todoIndex].completed;
+                    renderTodos();
+                }
+            } catch (error) {
+                console.error('Error toggling todo:', error);
+            }
+        }
+
+        function deleteTodo(id) {
+            try {
+                todos = todos.filter(todo => todo.id !== id);
+                renderTodos();
+            } catch (error) {
+                console.error('Error deleting todo:', error);
+            }
+        }
+
+        function clearCompleted() {
+            try {
+                todos = todos.filter(todo => !todo.completed);
+                renderTodos();
+            } catch (error) {
+                console.error('Error clearing completed todos:', error);
+            }
+        }
+
+        function renderTodos() {
+            try {
+                const todoList = document.getElementById('todoList');
+                const filterCategory = document.getElementById('filterCategory').value;
+                const filterPriority = document.getElementById('filterPriority').value;
+                const clearCompletedBtn = document.getElementById('clearCompletedBtn');
+
+                let filteredTodos = todos;
+                if (filterCategory !== 'all') {
+                    filteredTodos = filteredTodos.filter(todo => todo.category === filterCategory);
+                }
+                if (filterPriority !== 'all') {
+                    filteredTodos = filteredTodos.filter(todo => todo.priority === filterPriority);
+                }
+
+                // Sort by priority and due date
+                filteredTodos.sort((a, b) => {
+                    const priorityOrder = { high: 3, medium: 2, low: 1 };
+                    if (priorityOrder[b.priority] !== priorityOrder[a.priority]) {
+                        return priorityOrder[b.priority] - priorityOrder[a.priority];
+                    }
+                    if (a.dueDate && b.dueDate) {
+                        return new Date(a.dueDate) - new Date(b.dueDate);
+                    }
+                    return a.dueDate ? -1 : b.dueDate ? 1 : 0;
+                });
+
+                todoList.innerHTML = filteredTodos.map(todo => `
+                    <div class="todo-item ${todo.completed ? 'completed' : ''} priority-${todo.priority}">
+                        <input 
+                            type="checkbox" 
+                            ${todo.completed ? 'checked' : ''} 
+                            onchange="toggleTodo(${todo.id})"
+                        >
+                        <div class="todo-text-wrapper">
+                            <strong>${todo.text}</strong>
+                            <div style="font-size: 0.8em; color: #666;">
+                                ${todo.category} | Priority: ${todo.priority}
+                                ${todo.dueDate ? ` | Due: ${new Date(todo.dueDate).toLocaleDateString()}` : ''}
+                            </div>
+                        </div>
+                        <button class="delete-btn" onclick="deleteTodo(${todo.id})">Delete</button>
+                    </div>
+                `).join('');
+
+                // Update todo count
+                const totalTodos = todos.length;
+                const completedTodos = todos.filter(todo => todo.completed).length;
+                document.getElementById('todoCount').textContent = 
+                    `Total: ${totalTodos} | Completed: ${completedTodos} | Remaining: ${totalTodos - completedTodos}`;
+
+                // Enable/disable clear completed button
+                clearCompletedBtn.disabled = completedTodos === 0;
+
+            } catch (error) {
+                console.error('Error rendering todos:', error);
+                document.getElementById('todoList').innerHTML = 
+                    '<div class="error">Error displaying todos. Please refresh the page.</div>';
+            }
+        }
+
+        // Event Listeners
+        document.getElementById('todoForm').addEventListener('submit', addTodo);
+        document.getElementById('filterCategory').addEventListener('change', renderTodos);
+        document.getElementById('filterPriority').addEventListener('change', renderTodos);
+
+        // Initialize the display
+        renderTodos();
+    </script>
+</body>
+</html>
